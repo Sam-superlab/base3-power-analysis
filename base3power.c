@@ -1,130 +1,93 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 #include "base3power.h"
 
-// Multiply digits[] (base-3) by 2 in place
-int multiply_by_2_base3(uint8_t *digits, int len)
-{
-    int carry = 0;
-    for (int i = 0; i < len; i++)
-    {
-        int product = digits[i] * 2 + carry;
-        digits[i] = product % 3; // new digit in base 3
-        carry = product / 3;
-    }
-    // If there's a leftover carry, append a new digit
-    if (carry > 0)
-    {
-        digits[len] = carry; // carry is always 1 or 2 for base 3
-        len++;
-    }
-    return len;
-}
+// Add these global variables to track the sums
+unsigned long long total_digits = 0;
+unsigned long long total_zeros = 0;
+unsigned long long total_ones = 0;
+unsigned long long total_twos = 0;
 
-// Count how many 0s, 1s, and 2s are in digits[]
-void count_digits(const uint8_t *digits, int len,
-                  unsigned long long *cnt0,
-                  unsigned long long *cnt1,
-                  unsigned long long *cnt2)
+// Function to calculate total digits for 2^a in base 3
+int calculate_digits(int a)
 {
-    unsigned long long z = 0, o = 0, t = 0;
-    for (int i = 0; i < len; i++)
-    {
-        if (digits[i] == 0)
-            z++;
-        else if (digits[i] == 1)
-            o++;
-        else
-            t++;
-    }
-    *cnt0 = z;
-    *cnt1 = o;
-    *cnt2 = t;
+    return 1 + floor(a * log(2) / log(3));
 }
 
 int main(int argc, char *argv[])
 {
-    // Parse input for exponent limit A
     int A = (argc > 1) ? atoi(argv[1]) : MAX_A;
     if (A <= 0 || A > MAX_A)
     {
-        fprintf(stderr, "Error: Exponent must be between 1 and %d\n", MAX_A);
+        fprintf(stderr, "Invalid A value. Must be between 1 and %d\n", MAX_A);
         return 1;
     }
 
-    // Initialize digit array
+    FILE *csv = fopen("frequency_data.csv", "w");
+    if (!csv)
+    {
+        perror("Failed to open CSV file");
+        return 1;
+    }
+    fprintf(csv, "power,zeros,ones,twos,zeros_percent,ones_percent,twos_percent\n");
+
     static uint8_t digits[MAX_DIGITS];
     int len = 1;
     digits[0] = 2; // 2^1 in base 3
 
-    // Open CSV file for frequency data
-    FILE *csv = fopen("frequency_data.csv", "w");
-    if (!csv)
-    {
-        fprintf(stderr, "Error: Could not create frequency_data.csv\n");
-        return 1;
-    }
-
-    // Write CSV header
-    fprintf(csv, "power,zeros,ones,twos,total_digits,zeros_percent,ones_percent,twos_percent\n");
-
-    // Global accumulators for final summary
-    DigitCounts total = {0, 0, 0};
-
-    // Process each power and write to CSV
     for (int a = 1; a <= A; a++)
     {
-        // Count digits for current power
-        unsigned long long z, o, t;
-        count_digits(digits, len, &z, &o, &t);
+        unsigned long long cnt0, cnt1, cnt2;
+        count_digits(digits, len, &cnt0, &cnt1, &cnt2);
 
-        // Update totals
-        total.zeros += z;
-        total.ones += o;
-        total.twos += t;
+        // Update running totals
+        total_zeros += cnt0;
+        total_ones += cnt1;
+        total_twos += cnt2;
+        total_digits += len;
 
-        // Calculate percentages for current power
-        unsigned long long current_total = z + o + t;
-        double z_percent = 100.0 * z / current_total;
-        double o_percent = 100.0 * o / current_total;
-        double t_percent = 100.0 * t / current_total;
+        // Calculate ratios
+        double ratio_zeros = (double)total_zeros / total_digits;
+        double ratio_ones = (double)total_ones / total_digits;
+        double ratio_twos = (double)total_twos / total_digits;
 
-        // Write data to CSV
-        fprintf(csv, "%d,%llu,%llu,%llu,%llu,%.6f,%.6f,%.6f\n",
-                a, z, o, t, current_total, z_percent, o_percent, t_percent);
+        // Write to CSV
+        fprintf(csv, "%d,%llu,%llu,%llu,%.6f,%.6f,%.6f\n",
+                a, cnt0, cnt1, cnt2,
+                ratio_zeros * 100,
+                ratio_ones * 100,
+                ratio_twos * 100);
 
-        // Print progress every 1000 steps
         if (a % 1000 == 0)
         {
-            printf("Progress: Computed 2^%d (using %d digits)\n", a, len);
+            printf("Processed power 2^%d\n", a);
+            printf("Current ratios: 0s=%.6f%% 1s=%.6f%% 2s=%.6f%%\n",
+                   ratio_zeros * 100,
+                   ratio_ones * 100,
+                   ratio_twos * 100);
         }
 
-        // Multiply by 2 for next iteration (except for last iteration)
+        // Prepare next power unless this is the last iteration
         if (a < A)
         {
             len = multiply_by_2_base3(digits, len);
             if (len >= MAX_DIGITS)
             {
-                fprintf(stderr, "Error: Exceeded maximum digits at a=%d\n", a);
+                fprintf(stderr, "Exceeded maximum digits at a=%d\n", a);
                 fclose(csv);
                 return 1;
             }
         }
     }
 
-    fclose(csv);
-
-    // Print final summary
-    unsigned long long total_digits = total.zeros + total.ones + total.twos;
-    printf("\nFinal Results for powers 2^1 through 2^%d in base 3:\n", A);
+    printf("\nFinal Results for A=%d:\n", A);
     printf("Total digits processed: %llu\n", total_digits);
-    printf("Zeros: %llu (%.6f%%)\n", total.zeros,
-           100.0 * total.zeros / total_digits);
-    printf("Ones:  %llu (%.6f%%)\n", total.ones,
-           100.0 * total.ones / total_digits);
-    printf("Twos:  %llu (%.6f%%)\n", total.twos,
-           100.0 * total.twos / total_digits);
-    printf("\nFrequency data has been written to frequency_data.csv\n");
+    printf("Distribution:\n");
+    printf("Zeros: %.6f%%\n", (double)total_zeros / total_digits * 100);
+    printf("Ones:  %.6f%%\n", (double)total_ones / total_digits * 100);
+    printf("Twos:  %.6f%%\n", (double)total_twos / total_digits * 100);
 
+    fclose(csv);
     return 0;
 }
