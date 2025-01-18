@@ -4,8 +4,8 @@
 #include <stdint.h>
 
 // Constants for maximum supported values
-#define MAX_A 100000
-#define MAX_DIGITS 65000 // Slightly more than 0.63 * MAX_A
+#define MAX_A 1000000
+#define MAX_DIGITS 650000 // Slightly more than 0.63 * MAX_A
 
 // Core function declarations
 int multiply_by_2_base3(uint8_t *digits, int len);
