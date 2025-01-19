@@ -82,11 +82,3 @@ The program uses an incremental approach:
 
 - Time Complexity: O(A²) where A is the maximum exponent
 - Space Complexity: O(A) for storing digits and partial sums
-
-## License
-
-MIT License - feel free to use and modify as needed.
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request. 
